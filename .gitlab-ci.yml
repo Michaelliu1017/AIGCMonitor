@@ -1,0 +1,19 @@
+stages:
+  - build
+
+variables:
+  DOCKER_TLS_CERTDIR: ""
+
+before_script:
+  - export TAG=${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}
+
+build:
+  image: docker.4pd.io/build:12.0-buildx-jdk21
+  stage: build
+  script:
+    - echo "Building the Maven project..."
+    - ./mvnw clean package -DskipTests
+    - echo "Building the Docker image..."
+    - docker build --no-cache --tag $CI_REGISTRY_IMAGE:$TAG .
+    - echo "Pushing the Docker image..."
+    - docker push $CI_REGISTRY_IMAGE:$TAG

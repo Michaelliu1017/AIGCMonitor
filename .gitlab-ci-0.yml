@@ -1,0 +1,87 @@
+before_script:
+  - export env=$(echo ${CI_COMMIT_REF_NAME} | tr '[A-Z]' '[a-z]')
+  - export tag=pipe-$(echo "${CI_PIPELINE_IID}" | sed 's/(//g' | sed 's/)//g')-commit-${CI_COMMIT_SHA:0:8}
+  - export module="${CI_PROJECT_NAME}"
+  - export imagename_prefix=docker.4pd.io/env/${env}/${CI_PROJECT_NAMESPACE}/${module}
+  - export imagename=${imagename_prefix}:${tag}
+  - export handle_tag=${CI_COMMIT_TAG}
+  - export imagename_publish=docker.4pd.io/${env}/${CI_PROJECT_NAMESPACE}/${module}:{handle_tag}
+  - export IMAGE_TAG=$(echo "${CI_COMMIT_BRANCH}" | sed 's/\//-/g')-pipe-$(echo "${CI_PIPELINE_IID}" | sed 's/(//g' | sed 's/)//g')-commit-${CI_COMMIT_SHA:0:8}
+stages:
+  - package
+  - build_image
+  - package-harbor
+  - push-charts
+
+
+package:
+  stage: package
+  image: docker-search.4pd.io/maven:3.8.5-openjdk-17
+  script:
+    - mvn  clean package -pl sagera-4paradigm-bootstrap -am -Dmaven.test.skip=true
+  artifacts:
+    paths:
+      - sagera-4paradigm-bootstrap/target/*.jar
+  only:
+    - /release\/.+$/
+    - master
+    - develop-1.0
+    - feature/image-to-harbor
+    - /develop\/.+$/
+    - /^feat\/.+$/
+#  cache:
+#    paths:
+#      - /root/.m2/
+
+build_image:
+  stage: build_image
+  variables:
+    DOCKER_REGISTRY: 'docker-search.4pd.io/'
+  script:
+    - docker build -f Dockerfile.p -t ${imagename} --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} .
+    - docker tag ${imagename} ${imagename_prefix}:latest
+    - docker push ${imagename}
+    - docker push ${imagename_prefix}:latest
+  dependencies:
+    - package
+  only:
+    - /release\/.+$/
+    - master
+    - develop-1.0
+    - /develop\/.+$/
+    - /^feat\/.+$/
+
+package-harbor:
+  stage: package-harbor
+  variables:
+    MODULE_NAME: "sagera-4paradigm-application"
+    REGISTRY_PROJECT: "sagegpt-application"
+  script:
+    - BUILD_FILE=./Dockerfile buildx-4pd
+  tags:
+    - public-buildx
+  only:
+    - /release\/.+$/
+    - master
+    - develop-1.0
+    - /develop\/.+$/
+    - /^feat\/.+$/
+
+push-charts:
+  stage: push-charts
+  variables:
+    MODULE_NAME: "${CI_PROJECT_NAME}"
+    CHART_FOLDER: "sagera-4paradigm-application"
+    REGISTRY_PROJECT: "sagegpt-application"
+  before_script:
+    - export CHART_VERSION="1.0.0"
+  script:
+    - push-chart
+  tags:
+    - public-buildx
+  only:
+    - /release\/.+$/
+    - master
+    - develop-1.0
+    - /^feat\/.+$/
+    - /develop\/.+$/
