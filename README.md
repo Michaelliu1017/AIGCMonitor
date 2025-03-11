@@ -1,2 +1,2 @@
-# AIGC Monitor 
+# LLM URL Monitor 
 ## Project Description
